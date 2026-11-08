@@ -188,13 +188,18 @@ function dotnetFlags(tail) {
 const REGEX_BEFORE_WORDS = new Set(['return', 'typeof', 'case', 'do', 'else', 'in', 'of', 'new', 'delete', 'void', 'throw', 'yield', 'await', 'instanceof', 'and', 'or', 'not', 'if', 'unless', 'when', 'while', 'until', 'puts', 'then']);
 
 // Scans code, skipping strings and comments, and finds /regex/flags literals.
-function scanSlashLiterals(text, lang, push) {
+function scanSlashLiterals(text, lang, push, overBudget = () => false) {
   const ruby = lang === 'ruby';
   const n = text.length;
   let i = 0;
+  // A '/' whose scan found no closing '/' before the line end: no later '/' before that point is scanned again
+  // (VER11: a long line of '=/[' made this quadratic and froze the extension host).
+  let noLiteralBefore = -1;
+  let steps = 0;
   let prevSig = ''; // last significant character
   let prevWord = '';
   while (i < n) {
+    if ((++steps & 1023) === 0 && overBudget()) return;
     const c = text[i];
     // comments
     if (!ruby && c === '/' && text[i + 1] === '/') { const e = text.indexOf('\n', i); i = e < 0 ? n : e; continue; }
@@ -226,7 +231,7 @@ function scanSlashLiterals(text, lang, push) {
     }
     if (c === '/') {
       const regexOk = prevSig === '' || /[(,=:[!&|?{};+\-*%<>~^]/.test(prevSig) || REGEX_BEFORE_WORDS.has(prevWord);
-      if (regexOk) {
+      if (regexOk && i >= noLiteralBefore) {
         let j = i + 1, inClass = false, ok = false;
         while (j < n) {
           const d = text[j];
@@ -244,6 +249,7 @@ function scanSlashLiterals(text, lang, push) {
           else if (/^[dgimsuyv]*$/.test(fm[0])) push(i, j + 1 + fm[0].length - i, pat, fm[0], 'javascript');
           i = j + 1 + fm[0].length; prevSig = ')'; prevWord = ''; continue;
         }
+        if (!ok) noLiteralBefore = j;
       }
     }
     if (/\s/.test(c)) { i++; continue; }
@@ -267,25 +273,36 @@ function rubyFlags(m) {
 
 // ---------- call patterns per language ----------
 
-// True when offset is inside a line comment that starts with one of the markers ('#' or '//').
-function inLineComment(text, offset, markers) {
-  const ls = text.lastIndexOf('\n', offset - 1) + 1;
-  const prefix = text.slice(ls, offset);
-  let q = '';
-  for (let k = 0; k < prefix.length; k++) {
-    const c = prefix[k];
-    if (q) { if (c === '\\') k++; else if (c === q) q = ''; continue; }
-    if (c === '"' || c === "'" || c === '`') { q = c; continue; }
-    for (const mk of markers) if (prefix.startsWith(mk, k)) return true;
-  }
-  return false;
+// A checker for "is this offset inside a line comment that starts with one of the markers ('#' or '//')?" for offsets
+// that only grow. Each line is read once (VER11: re-reading the line for every match was quadratic on long lines).
+function lineCommentChecker(text, markers) {
+  let ls = 0, nextNl = text.indexOf('\n'), commentEnd = -2;
+  return offset => {
+    while (nextNl >= 0 && nextNl < offset) { ls = nextNl + 1; nextNl = text.indexOf('\n', ls); commentEnd = -2; }
+    if (commentEnd === -2) {
+      const le = nextNl < 0 ? text.length : nextNl;
+      commentEnd = -1;
+      let q = '';
+      for (let k = ls; k < le; k++) {
+        const c = text[k];
+        if (q) { if (c === '\\') k++; else if (c === q) q = ''; continue; }
+        if (c === '"' || c === "'" || c === '`') { q = c; continue; }
+        const mk = markers.find(x => text.startsWith(x, k));
+        if (mk) { commentEnd = k + mk.length; break; }
+      }
+    }
+    return commentEnd >= 0 && commentEnd <= offset;
+  };
 }
 
-function scanCalls(text, re, read, onFound, markers) {
+function scanCalls(text, re, read, onFound, markers, overBudget = () => false) {
   re.lastIndex = 0;
   let m;
+  const inComment = markers ? lineCommentChecker(text, markers) : null;
+  let steps = 0;
   while ((m = re.exec(text)) !== null) {
-    if (markers && inLineComment(text, m.index, markers)) continue;
+    if ((++steps & 255) === 0 && overBudget()) return;
+    if (inComment && inComment(m.index)) continue;
     const at = m.index + m[0].length;
     const s = read(text, at);
     if (!s) continue;
@@ -293,11 +310,15 @@ function scanCalls(text, re, read, onFound, markers) {
   }
 }
 
-/** All regexes in one document. languageId: VS Code language id. */
-function findRegexes(text, languageId) {
+/** All regexes in one document. languageId: VS Code language id. opts.budgetMs: stop after this time and return
+ *  what was found so far, with out.truncated = true (the CodeLens runs on the extension host thread). */
+function findRegexes(text, languageId, opts = {}) {
   const lang0 = String(languageId || '');
   const markers = lang0 === 'python' || lang0 === 'ruby' ? ['#'] : (lang0 === 'php' ? ['//', '#'] : ['//']);
-  const scan = (t, re, read, onFound) => scanCalls(t, re, read, onFound, markers);
+  const deadline = opts.budgetMs ? Date.now() + opts.budgetMs : Infinity;
+  let truncated = false;
+  const overBudget = () => (truncated = truncated || Date.now() > deadline);
+  const scan = (t, re, read, onFound) => scanCalls(t, re, read, onFound, markers, overBudget);
   const out = [];
   const seen = new Set();
   const push = (offset, length, pattern, flags, flavor) => {
@@ -307,7 +328,7 @@ function findRegexes(text, languageId) {
   };
   const lang = String(languageId || '');
   if (/^(javascript|typescript|javascriptreact|typescriptreact|vue|svelte|astro)$/.test(lang)) {
-    scanSlashLiterals(text, 'js', push);
+    scanSlashLiterals(text, 'js', push, overBudget);
     scan(text, /\b(?:new\s+)?RegExp\(\s*/g, readJsString, (at, s) => {
       const tail = argsTail(text, s.end);
       const fm = /^\s*,\s*(['"`])([dgimsuyv]*)\1/.exec(tail);
@@ -342,10 +363,11 @@ function findRegexes(text, languageId) {
       push(at, s.end - at, d.pattern, f, 'pcre');
     });
   } else if (lang === 'ruby') {
-    scanSlashLiterals(text, 'ruby', push);
+    scanSlashLiterals(text, 'ruby', push, overBudget);
     scan(text, /\bRegexp\.new\(\s*/g, (t, i) => (t[i] === "'" ? readQuoted(t, i, "'", (x, j) => (x[j + 1] === "'" || x[j + 1] === '\\' ? { str: x[j + 1], len: 2 } : { str: '\\' + x[j + 1], len: 2 })) : readQuoted(t, i, '"', cEscapes(true))), (at, s) => push(at, s.end - at, s.value, 'm', 'pcre'));
   }
   out.sort((a, b) => a.offset - b.offset);
+  if (truncated) out.truncated = true;
   return out;
 }
 

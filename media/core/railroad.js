@@ -43,7 +43,7 @@
       w, up: H / 2, down: H / 2, boxes: 1,
       draw(x, y, out) {
         const rx = cls === 'rr-lit' ? 11 : 3;
-        out.push(`<g class="rr-node ${cls}"><title>${esc(title || text)}</title><rect x="${x}" y="${y - H / 2}" width="${w}" height="${H}" rx="${rx}"/>`
+        out.push(`<g class="rr-node ${cls}"><title>${esc(vis(title || text))}</title><rect x="${x}" y="${y - H / 2}" width="${w}" height="${H}" rx="${rx}"/>`
           + `<text x="${x + w / 2}" y="${y + 4}" text-anchor="middle">${esc(t)}</text></g>`);
       },
     };

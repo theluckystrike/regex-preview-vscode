@@ -89,6 +89,7 @@ class RegexPanel {
       case 'result': {
         // The tool worked: a valid pattern ran on the sample. Counts once per regex opened from code (or per panel),
         // not once per keystroke.
+        if (m.crashed) { rating.failure(); break; } // the matcher worker crashed: no rating ask after it
         if (m.ok && this.countNext) {
           this.countNext = false;
           if (this.sourceUri) rating.success(this.sourceUri);
@@ -203,7 +204,7 @@ async function pickSampleFile(p) {
 
 function lensFor(doc, pos) {
   const text = doc.getText();
-  const found = findRegexes(text, doc.languageId);
+  const found = findRegexes(text, doc.languageId, { budgetMs: 1000 });
   if (!found.length) return null;
   const off = doc.offsetAt(pos);
   // the regex on the cursor line, or the nearest one above it
@@ -223,7 +224,9 @@ class LensProvider {
     const maxKB = Number(cfg().get('codeLensMaxFileKB', 1024)) || 1024;
     const text = doc.getText();
     if (text.length > maxKB * 1024) return [];
-    const found = findRegexes(text, doc.languageId);
+    if (token && token.isCancellationRequested) return [];
+    // a time budget keeps the extension host free on hostile text (VER11); lenses found until then are shown
+    const found = findRegexes(text, doc.languageId, { budgetMs: 250 });
     const lenses = [];
     for (const r of found) {
       if (token && token.isCancellationRequested) break;

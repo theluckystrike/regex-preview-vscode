@@ -28,6 +28,7 @@ const FLAG_INFO = [
   ['m', 'multiline: ^ and $ match at line starts and ends'],
   ['s', 'dotAll: . also matches line breaks'],
   ['u', 'unicode: code points, \\p{...} properties'],
+  ['v', 'unicodeSets: like u, plus set operations in classes such as [\\p{L}--[a-z]]'],
   ['y', 'sticky: match only at lastIndex'],
   ['x', 'verbose: ignore spaces and # comments (not in JavaScript)'],
 ];

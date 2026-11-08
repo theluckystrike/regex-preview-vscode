@@ -30,7 +30,7 @@
     if (!workerUrl) workerUrl = URL.createObjectURL(new Blob([RP.workerSource()], { type: 'text/javascript' }));
     const w = new Worker(workerUrl);
     w.onmessage = (e) => onResult(e.data);
-    w.onerror = (e) => { e.preventDefault(); finish(); showError('The matcher stopped: ' + (e.message || 'unknown error')); };
+    w.onerror = (e) => { e.preventDefault(); finish(); showError('The matcher stopped: ' + (e.message || 'unknown error')); vscode.postMessage({ type: 'result', ok: false, crashed: true }); };
     return w;
   }
   function stopWorker() {
@@ -41,7 +41,8 @@
   // ---------- state ----------
   const flagStr = () => ['d', 'g', 'i', 'm', 's', 'u', 'v', 'y', 'x'].filter((f) => st.flags.has(f)).join('');
   function setFlags(f) {
-    st.flags = new Set(String(f || '').split('').filter((c) => 'gimsuyx'.includes(c)));
+    st.flags = new Set(String(f || '').split('').filter((c) => 'dgimsuvyx'.includes(c)));
+    if (st.flags.has('v')) st.flags.delete('u'); // v (unicodeSets) replaces u; JavaScript refuses both at once
     for (const b of document.querySelectorAll('.flag')) b.setAttribute('aria-pressed', String(st.flags.has(b.dataset.flag)));
   }
   let saveTimer = null;
@@ -386,7 +387,8 @@
     b.addEventListener('click', () => {
       const f = b.dataset.flag;
       if (st.flags.has(f)) st.flags.delete(f); else st.flags.add(f);
-      b.setAttribute('aria-pressed', String(st.flags.has(f)));
+      if (st.flags.has(f) && (f === 'u' || f === 'v')) st.flags.delete(f === 'u' ? 'v' : 'u');
+      for (const x of document.querySelectorAll('.flag')) x.setAttribute('aria-pressed', String(st.flags.has(x.dataset.flag)));
       save(); lastDiagramKey = ''; schedule(0);
     });
   }
