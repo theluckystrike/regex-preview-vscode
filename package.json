@@ -1,0 +1,243 @@
+{
+  "name": "zovo-regex-preview",
+  "displayName": "Regex Preview & Regex Tester (Railroad Diagram Visualizer, Groups)",
+  "description": "Regex preview and regex tester beside your code: click \"Test regex\" above a regex in JS, TS, Python, Go, Java, C#, PHP, Ruby or Rust. Capture groups, replace preview, railroad diagram visualizer, explain mode, flavor warnings. Free, no sign-in, works offline.",
+  "version": "0.1.0",
+  "publisher": "zovo",
+  "license": "MIT",
+  "icon": "icon.png",
+  "galleryBanner": {
+    "color": "#1B2430",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "regex",
+    "regexp",
+    "regular expression",
+    "regex tester",
+    "regex preview",
+    "regex visualizer",
+    "railroad diagram",
+    "regex debugger",
+    "capture groups",
+    "named groups",
+    "python regex",
+    "regex101",
+    "offline"
+  ],
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onLanguage:javascript",
+    "onLanguage:typescript",
+    "onLanguage:javascriptreact",
+    "onLanguage:typescriptreact",
+    "onLanguage:python",
+    "onLanguage:go",
+    "onLanguage:rust",
+    "onLanguage:java",
+    "onLanguage:kotlin",
+    "onLanguage:csharp",
+    "onLanguage:php",
+    "onLanguage:ruby",
+    "onLanguage:vue",
+    "onLanguage:svelte",
+    "onWebviewPanel:regexPreview.panel"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "regexPreview.open",
+        "title": "Open Regex Preview",
+        "category": "Regex Preview",
+        "icon": "$(regex)"
+      },
+      {
+        "command": "regexPreview.testSelection",
+        "title": "Test Selected Text as Regex",
+        "category": "Regex Preview"
+      },
+      {
+        "command": "regexPreview.useFileAsSample",
+        "title": "Use File as Regex Sample Text",
+        "category": "Regex Preview"
+      },
+      {
+        "command": "regexPreview.testAt",
+        "title": "Test Regex",
+        "category": "Regex Preview"
+      },
+      {
+        "command": "regexPreview.openWalkthrough",
+        "title": "Get Started",
+        "category": "Regex Preview"
+      },
+      {
+        "command": "regexPreview.supportDeveloper",
+        "title": "Support the developer",
+        "category": "Regex Preview"
+      },
+      {
+        "command": "regexPreview.moreViewers",
+        "title": "More free viewers",
+        "category": "Regex Preview"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "regexPreview.open",
+        "key": "ctrl+alt+m",
+        "mac": "cmd+alt+m",
+        "when": "editorTextFocus"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "regexPreview.testSelection",
+          "when": "editorHasSelection",
+          "group": "navigation@20"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "regexPreview.useFileAsSample",
+          "when": "!explorerResourceIsFolder",
+          "group": "navigation@20"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "regexPreview.testAt",
+          "when": "false"
+        },
+        {
+          "command": "regexPreview.testSelection",
+          "when": "editorHasSelection"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Regex Preview",
+      "properties": {
+        "regexPreview.codeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show \"Test regex\" above regexes in JavaScript, TypeScript, Python, Go, Rust, Java, Kotlin, C#, PHP and Ruby files. It is a CodeLens only: no language server and no TypeScript plugin."
+        },
+        "regexPreview.codeLensMaxFileKB": {
+          "type": "number",
+          "default": 1024,
+          "minimum": 16,
+          "maximum": 20480,
+          "description": "Files larger than this (in KB) get no \"Test regex\" CodeLens, so big generated files stay fast. Selecting a pattern still works."
+        },
+        "regexPreview.timeoutMs": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 200,
+          "maximum": 10000,
+          "description": "Time limit for one match run, in milliseconds. A pattern that takes longer (catastrophic backtracking) is stopped and the panel says so."
+        },
+        "regexPreview.maxSampleMB": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "maximum": 100,
+          "description": "When a file is used as sample text, only its first part up to this size is read."
+        },
+        "regexPreview.maxMatchRows": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 50,
+          "maximum": 20000,
+          "description": "How many matches the table lists. All matches are still counted."
+        },
+        "regexPreview.defaultFlags": {
+          "type": "string",
+          "default": "g",
+          "pattern": "^[gimsuyx]*$",
+          "description": "Flags for a new pattern typed in the panel."
+        },
+        "regexPreview.askForRating": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ask for a Marketplace rating after you have used Regex Preview in two sessions. You can answer \"Later\" or \"No thanks\". Nothing is sent anywhere."
+        },
+        "regexPreview.showSupportLinks": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the small Rate, More free viewers and Sponsor links at the bottom of the panel. Nothing is sent anywhere."
+        }
+      }
+    },
+    "walkthroughs": [
+      {
+        "id": "regexPreview.start",
+        "title": "Get started with Regex Preview",
+        "description": "Test the regexes in your code on your own text, with groups, replace and a railroad diagram. No account, no network.",
+        "steps": [
+          {
+            "id": "lens",
+            "title": "Click \"Test regex\" in your code",
+            "description": "Open a JavaScript, TypeScript, Python, Go, Java, C#, PHP, Ruby or Rust file. A \"Test regex\" link shows above each regex. In any other file, select a pattern and run \"Test Selected Text as Regex\".\n[Open the panel](command:regexPreview.open)",
+            "media": {
+              "markdown": "walkthrough/lens.md"
+            },
+            "completionEvents": [
+              "onCommand:regexPreview.testAt",
+              "onCommand:regexPreview.open"
+            ]
+          },
+          {
+            "id": "sample",
+            "title": "Your own sample text",
+            "description": "Type or paste text in the panel; it is kept for this workspace. \"Load file\" uses a log or data file, even a large one.\n[Use a file as sample text](command:regexPreview.useFileAsSample)",
+            "media": {
+              "markdown": "walkthrough/sample.md"
+            }
+          },
+          {
+            "id": "flavor",
+            "title": "Diagram, explain and flavors",
+            "description": "The Diagram tab draws a railroad diagram (export SVG or PNG). Explain lists each part in plain words. Pick Python, Java, .NET, Go or PCRE to see syntax that differs from JavaScript.",
+            "media": {
+              "markdown": "walkthrough/flavor.md"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "package": "npx -y @vscode/vsce package --no-dependencies -o dist/"
+  },
+  "homepage": "https://github.com/theluckystrike/regex-preview-vscode#readme",
+  "bugs": {
+    "url": "https://github.com/theluckystrike/regex-preview-vscode/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/theluckystrike/regex-preview-vscode"
+  },
+  "devDependencies": {
+    "@types/vscode": "~1.90.0"
+  },
+  "sponsor": {
+    "url": "https://github.com/sponsors/theluckystrike"
+  }
+}
